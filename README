@@ -1,0 +1,15 @@
+deppa
+-----
+
+deppa (出っ歯), jap. "bucktooth"
+is a server implementation of the gopher protocol.
+it converts markdown files in a directory to gopher responses on-the-fly.
+if a link is present on one line, the entire line will be marked as a link.
+if multiple links are present, the first one is used.
+magic strings follow the file system hierachy, leading slash is ignored and use of .. sends an error.
+.md will be served as directory listings, .txt will be served as plaintext.
+trailing slash is interpreted as directory listing and generated on-the-fly, use --no-indexes to disable.
+gobj files should be executable, if they are, they will be executed and their output will be sent to the client (use format "text file" because deppa will not add any types to the output. if your program does tho, you can use any type you want to)
+gm files are just plain old gophermap files.
+magic files: .reverse will reverse your directory listings, index.extension will replace any directory listings, .header will be sent before any content in this directory, .footer will be sent after any content in the directory
+.header and .footer must be in plain text format
