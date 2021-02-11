@@ -76,6 +76,7 @@ func handleBasicRequest(request string, conn net.Conn, opts DeppaSettings) {
 func handleDirectoryListingRequest(request string, conn net.Conn, opts DeppaSettings) {
 	files, err := ioutil.ReadDir(opts.dir + "/" + request)
 	if err != nil {
+		fmt.Println(opts.dir + "/" + request)
 		fmt.Fprint(conn, ErrorResponse("Invalid request: cannot read target dir"))
 	}
 
@@ -105,8 +106,10 @@ func handleDirectoryListingRequest(request string, conn net.Conn, opts DeppaSett
 		var respline string
 		if file.IsDir() || strings.HasSuffix(file.Name(), ".md") || strings.HasSuffix(file.Name(), ".gm") {
 			respline = "1" + file.Name() + "\t" + request + "/" + file.Name() + "\t" + opts.hostname + "\t" + opts.portString + "\r\n"
-		} else {
+		} else if strings.HasSuffix(file.Name(), ".gobj") || strings.HasSuffix(file.Name(), ".txt") {
 			respline = "0" + file.Name() + "\t" + request + "/" + file.Name() + "\t" + opts.hostname + "\t" + opts.portString + "\r\n"
+		} else {
+			respline = "9" + file.Name() + "\t" + request + "/" + file.Name() + "\t" + opts.hostname + "\t" + opts.portString + "\r\n"
 		}
 		resplines = append(resplines, respline)
 	}
@@ -115,7 +118,7 @@ func handleDirectoryListingRequest(request string, conn net.Conn, opts DeppaSett
 		SendFile(opts.dir + "/" + request + "/.header", conn)
 	}
 	if use_index {
-		handleFileDisplayRequest(request + "/" + index_fname, conn, opts)
+		handleFileDisplayRequest(request + "/" + index_fname, conn, opts, false)
 	} else {
 		if reverse {
 			for i := len(resplines) - 1; i >= 0; i-- {
@@ -133,8 +136,57 @@ func handleDirectoryListingRequest(request string, conn net.Conn, opts DeppaSett
 	fmt.Fprint(conn, ".\r\n")
 }
 
-func handleDisplayFileRequest(request string, conn net.Conn, opts DeppaSettings) {
+func handleFileDisplayRequest(request string, conn net.Conn, opts DeppaSettings, standalone bool) {
+	if strings.HasSuffix(request, ".md") {
 
+	} else if strings.HasSuffix(request, ".gm") {
+
+	} else if strings.HasSuffix(request, ".gobj") {
+
+	} else if strings.HasSuffix(request, ".txt") {
+		SendFile(opts.dir + "/" + request, conn)
+		fmt.Fprint(conn, ".\r\n")
+	} else {
+		SendFile(opts.dir + "/" + request, conn)
+		return
+	}
+	if standalone {
+		fmt.Fprint(conn, ".\r\n")
+	}
+}
+
+func SendHeaderIfStandaloneAndExists(request string, conn net.Conn, opts DeppaSettings, standalone bool) {
+	if standalone {
+		pathParts := strings.Split(request, "/")
+		var path string
+		if len(pathParts) == 1 {
+			path = ""
+		} else {
+			path = strings.Join(pathParts[:len(pathParts) - 1], "/")
+		}
+
+		exist, isdir, err := existsAndIsDir(opts.dir + "/" + path + "/.header")
+		if exist && !isdir && err == nil {
+			SendFile(opts.dir + "/" + path + "/.header", conn)
+		}
+	}
+}
+
+func SendFooterIfStandaloneAndExists(request string, conn net.Conn, opts DeppaSettings, standalone bool) {
+	if standalone {
+		pathParts := strings.Split(request, "/")
+		var path string
+		if len(pathParts) == 1 {
+			path = ""
+		} else {
+			path = strings.Join(pathParts[:len(pathParts) - 1], "/")
+		}
+
+		exist, isdir, err := existsAndIsDir(opts.dir + "/" + path + "/.footer")
+		if exist && !isdir && err == nil {
+			SendFile(opts.dir + "/" + path + "/.footer", conn)
+		}
+	}
 }
 
 func SendFile(path string, conn net.Conn) {
