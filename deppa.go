@@ -1,6 +1,6 @@
 /**
  * This file is part of Deppa.
-
+ *
  * Deppa is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -71,22 +71,30 @@ func handleConnection(conn net.Conn, opts DeppaSettings) {
 		return
 	}
 
-	fmt.Printf("%v: %s\n", conn.RemoteAddr(), req)
+	fmt.Printf("%v: %s", conn.RemoteAddr(), req)
 
 	handleBasicRequest(string(req), conn, opts)
 }
 
 func handleBasicRequest(request string, conn net.Conn, opts DeppaSettings) {
 	/* find request type */
-	if request[0] == '/' {
-		request = request[1:]
+	if len(request) > 0 {
+		if request[0] == '/' {
+			request = request[1:]
+		}
 	}
 	if strings.Contains(request, "../") || strings.Contains(request, "/..") {
 		fmt.Fprint(conn, ErrorResponse("Invalid request: \"../\" and \"/..\" are not allowed in magic string"))
 	}
 
-	if request[len(request) - 1] == '/' || request == "" {
+	fmt.Printf("\t%s/%s\n", opts.dir, request)
+
+	if request == "" {
 		handleDirectoryListingRequest(request, conn, opts)
+	} else if request[len(request) - 1] == '/' {
+		handleDirectoryListingRequest(request, conn, opts)
+	} else {
+		handleFileDisplayRequest(request, conn, opts)
 	}
 }
 
@@ -112,31 +120,32 @@ func handleDirectoryListingRequest(request string, conn net.Conn, opts DeppaSett
 				header = true
 			} else if file.Name() == ".footer" {
 				footer = true
-			} else if strings.HasPrefix(file.Name(), "index") && !strings.HasSuffix(file.Name(), ".html") {
-				use_index = true
-				index_fname = file.Name()
-				break
 			}
 			continue
+		} else if strings.HasPrefix(file.Name(), "index") && !strings.HasSuffix(file.Name(), ".html") {
+			use_index = true
+			index_fname = file.Name()
+			break
 		}
 
 		var respline string
 		if file.IsDir() || strings.HasSuffix(file.Name(), ".md") || strings.HasSuffix(file.Name(), ".gm") {
 			respline = "1" + file.Name() + "\t" + request + "/" + file.Name() + "\t" + opts.hostname + "\t" + opts.portString + "\r\n"
 		} else if strings.HasSuffix(file.Name(), ".gobj") || strings.HasSuffix(file.Name(), ".txt") {
-			respline = "0" + file.Name() + "\t" + request + "/" + file.Name() + "\t" + opts.hostname + "\t" + opts.portString + "\r\n"
+			respline = "0" + file.Name() + "\t" + request + file.Name() + "\t" + opts.hostname + "\t" + opts.portString + "\r\n"
 		} else {
-			respline = "9" + file.Name() + "\t" + request + "/" + file.Name() + "\t" + opts.hostname + "\t" + opts.portString + "\r\n"
+			respline = "9" + file.Name() + "\t" + request + file.Name() + "\t" + opts.hostname + "\t" + opts.portString + "\r\n"
 		}
 		resplines = append(resplines, respline)
 	}
 
-	if header {
-		SendFile(opts.dir + "/" + request + "/.header", conn)
-	}
+	
 	if use_index {
-		handleFileDisplayRequest(request + "/" + index_fname, conn, opts, false)
+		handleFileDisplayRequest(request + "/" + index_fname, conn, opts)
 	} else {
+		if header {
+			SendPlainFile(opts.dir + "/" + request + "/.header", conn)
+		}
 		if reverse {
 			for i := len(resplines) - 1; i >= 0; i-- {
 				fmt.Fprint(conn, resplines[i])
@@ -146,61 +155,76 @@ func handleDirectoryListingRequest(request string, conn net.Conn, opts DeppaSett
 				fmt.Fprint(conn, entry)
 			}
 		}
+		if footer {
+			SendPlainFile(opts.dir + "/" + request + "/.footer", conn)
+		}
+		fmt.Fprint(conn, ".\r\n")
 	}
-	if footer {
-		SendFile(opts.dir + "/" + request + "/.header", conn)
-	}
-	fmt.Fprint(conn, ".\r\n")
 }
 
-func handleFileDisplayRequest(request string, conn net.Conn, opts DeppaSettings, standalone bool) {
+func handleFileDisplayRequest(request string, conn net.Conn, opts DeppaSettings) {
+	exist, isdir, err := existsAndIsDir(opts.dir + "/" + request)
+	if !exist || err != nil {
+		fmt.Fprint(conn, ErrorResponse("Not found"))
+	} else if isdir {
+		handleDirectoryListingRequest(request + "/", conn, opts)
+	}
 	if strings.HasSuffix(request, ".md") {
-
+		SendHeaderIfStandaloneAndExists(request, conn, opts, true)
+		/* parse */
+		SendFooterIfStandaloneAndExists(request, conn, opts, true)
 	} else if strings.HasSuffix(request, ".gm") {
-
-	} else if strings.HasSuffix(request, ".gobj") {
-
-	} else if strings.HasSuffix(request, ".txt") {
+		SendHeaderIfStandaloneAndExists(request, conn, opts, true)
 		SendFile(opts.dir + "/" + request, conn)
-		fmt.Fprint(conn, ".\r\n")
+		SendFooterIfStandaloneAndExists(request, conn, opts, true)
+	} else if strings.HasSuffix(request, ".gobj") {
+		SendHeaderIfStandaloneAndExists(request, conn, opts, false)
+		/* exec */
+		SendFooterIfStandaloneAndExists(request, conn, opts, false)
+	} else if strings.HasSuffix(request, ".txt") {
+		SendHeaderIfStandaloneAndExists(request, conn, opts, false)
+		SendFile(opts.dir + "/" + request, conn)
+		SendFooterIfStandaloneAndExists(request, conn, opts, false)
 	} else {
 		SendFile(opts.dir + "/" + request, conn)
 		return
 	}
-	if standalone {
-		fmt.Fprint(conn, ".\r\n")
-	}
+	fmt.Fprint(conn, ".\r\n")
 }
 
-func SendHeaderIfStandaloneAndExists(request string, conn net.Conn, opts DeppaSettings, standalone bool) {
-	if standalone {
-		pathParts := strings.Split(request, "/")
-		var path string
-		if len(pathParts) == 1 {
-			path = ""
-		} else {
-			path = strings.Join(pathParts[:len(pathParts) - 1], "/")
-		}
+func SendHeaderIfStandaloneAndExists(request string, conn net.Conn, opts DeppaSettings, listing bool) {
+	pathParts := strings.Split(request, "/")
+	var path string
+	if len(pathParts) == 1 {
+		path = ""
+	} else {
+		path = strings.Join(pathParts[:len(pathParts) - 1], "/")
+	}
 
-		exist, isdir, err := existsAndIsDir(opts.dir + "/" + path + "/.header")
-		if exist && !isdir && err == nil {
+	exist, isdir, err := existsAndIsDir(opts.dir + "/" + path + "/.header")
+	if exist && !isdir && err == nil {
+		if listing {
+			SendPlainFile(opts.dir + "/" + path + "/.header", conn)
+		} else {
 			SendFile(opts.dir + "/" + path + "/.header", conn)
 		}
 	}
 }
 
-func SendFooterIfStandaloneAndExists(request string, conn net.Conn, opts DeppaSettings, standalone bool) {
-	if standalone {
-		pathParts := strings.Split(request, "/")
-		var path string
-		if len(pathParts) == 1 {
-			path = ""
-		} else {
-			path = strings.Join(pathParts[:len(pathParts) - 1], "/")
-		}
+func SendFooterIfStandaloneAndExists(request string, conn net.Conn, opts DeppaSettings, listing bool) {
+	pathParts := strings.Split(request, "/")
+	var path string
+	if len(pathParts) == 1 {
+		path = ""
+	} else {
+		path = strings.Join(pathParts[:len(pathParts) - 1], "/")
+	}
 
-		exist, isdir, err := existsAndIsDir(opts.dir + "/" + path + "/.footer")
-		if exist && !isdir && err == nil {
+	exist, isdir, err := existsAndIsDir(opts.dir + "/" + path + "/.footer")
+	if exist && !isdir && err == nil {
+		if listing {
+			SendPlainFile(opts.dir + "/" + path + "/.footer", conn)
+		} else {
 			SendFile(opts.dir + "/" + path + "/.footer", conn)
 		}
 	}
@@ -217,6 +241,22 @@ func SendFile(path string, conn net.Conn) {
 	if err != nil {
 		return
 	}
+}
+
+func SendPlainFile(path string, conn net.Conn) {
+	file, err := os.Open(path)
+	if err != nil {
+		fmt.Fprint(conn, ErrorResponse("Not found"))
+		return
+	}
+	defer file.Close()
+	scan := bufio.NewScanner(file)
+    for scan.Scan() {
+        fmt.Fprintf(conn, "i%s\tfake\t(NULL)\t0\r\n", scan.Text())
+    }
+    if scan.Err() != nil {
+        fmt.Fprint(conn, ErrorResponse("Read error"))
+    }
 }
 
 func RunServer(opts DeppaSettings) {
