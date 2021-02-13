@@ -20,6 +20,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"net"
 	"flag"
 	"bufio"
@@ -130,7 +131,7 @@ func handleDirectoryListingRequest(request string, conn net.Conn, opts DeppaSett
 
 		var respline string
 		if file.IsDir() || strings.HasSuffix(file.Name(), ".md") || strings.HasSuffix(file.Name(), ".gm") {
-			respline = "1" + file.Name() + "\t" + request + "/" + file.Name() + "\t" + opts.hostname + "\t" + opts.portString + "\r\n"
+			respline = "1" + file.Name() + "\t" + request + file.Name() + "\t" + opts.hostname + "\t" + opts.portString + "\r\n"
 		} else if strings.HasSuffix(file.Name(), ".gobj") || strings.HasSuffix(file.Name(), ".txt") {
 			respline = "0" + file.Name() + "\t" + request + file.Name() + "\t" + opts.hostname + "\t" + opts.portString + "\r\n"
 		} else {
@@ -179,7 +180,12 @@ func handleFileDisplayRequest(request string, conn net.Conn, opts DeppaSettings)
 		SendFooterIfStandaloneAndExists(request, conn, opts, true)
 	} else if strings.HasSuffix(request, ".gobj") {
 		SendHeaderIfStandaloneAndExists(request, conn, opts, false)
-		/* exec */
+		out, err := exec.Command(opts.dir + "/" + request).Output()
+		if err != nil {
+			fmt.Fprint(conn, ErrorResponse("error executing script"))
+			return
+		}
+		conn.Write(out)
 		SendFooterIfStandaloneAndExists(request, conn, opts, false)
 	} else if strings.HasSuffix(request, ".txt") {
 		SendHeaderIfStandaloneAndExists(request, conn, opts, false)
