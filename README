@@ -1,11 +1,10 @@
 deppa
 -----
 
-deppa (出っ歯), jap. "bucktooth"
+deppa (出っ歯), jap. "bucktooth"#
 is a server implementation of the gopher protocol.
 it converts markdown files in a directory to gopher responses on-the-fly.
-if a link is present on one line, the entire line will be marked as a link.
-if multiple links are present, the first one is used.
+links and images must be on single lines or else they will be ignored and sent as plain text.
 magic strings follow the file system hierachy, leading slash is ignored and use of .. sends an error.
 .md will be served as directory listings, .txt will be served as plaintext (note: please use dos line endings, deppa will not convert anything!).
 trailing slash is interpreted as directory listing and generated on-the-fly, use --no-indexes to disable.

@@ -79,11 +79,6 @@ func handleConnection(conn net.Conn, opts DeppaSettings) {
 
 func handleBasicRequest(request string, conn net.Conn, opts DeppaSettings) {
 	/* find request type */
-	if len(request) > 0 {
-		if request[0] == '/' {
-			request = request[1:]
-		}
-	}
 	if strings.Contains(request, "../") || strings.Contains(request, "/..") {
 		fmt.Fprint(conn, ErrorResponse("Invalid request: \"../\" and \"/..\" are not allowed in magic string"))
 	}
@@ -172,7 +167,7 @@ func handleFileDisplayRequest(request string, conn net.Conn, opts DeppaSettings)
 	}
 	if strings.HasSuffix(request, ".md") {
 		SendHeaderIfStandaloneAndExists(request, conn, opts, true)
-		/* parse */
+		SendMarkdownFile(opts.dir + "/" + request, conn, opts, request)
 		SendFooterIfStandaloneAndExists(request, conn, opts, true)
 	} else if strings.HasSuffix(request, ".gm") {
 		SendHeaderIfStandaloneAndExists(request, conn, opts, true)
@@ -249,6 +244,56 @@ func SendFile(path string, conn net.Conn) {
 	}
 }
 
+func SendMarkdownFile(path string, conn net.Conn, opts DeppaSettings, request string) {
+	file, err := os.Open(path)
+	if err != nil {
+		fmt.Fprint(conn, ErrorResponse("Not found"))
+		return
+	}
+	defer file.Close()
+	scan := bufio.NewScanner(file)
+    for scan.Scan() {
+		currentline := scan.Text()
+		if strings.HasPrefix(currentline, "[") {
+			sections := strings.Split(currentline, "]")
+			sections[0] = sections[0][1:]
+			sections[1] = sections[1][1:len(sections[1]) - 1]
+
+			if strings.HasPrefix(sections[1], "http") || strings.HasSuffix(sections[1], "html") {
+				fmt.Fprintf(conn, "h%s\t/URL:%s\t%s\t%s\r\n", sections[0], sections[1], opts.hostname, opts.portString)
+			} else {
+				if sections[1][0] != '/' {
+					pathParts := strings.Split(request, "/")
+					if len(pathParts) == 1 {
+						request = ""
+					} else {
+						request = strings.Join(pathParts[:len(pathParts) - 1], "/") + "/"
+					}
+					sections[1] = request + sections[1]
+				}
+
+				if strings.HasSuffix(sections[1], "/") || strings.HasSuffix(sections[1], ".md") || strings.HasSuffix(sections[1], ".gm") {
+					fmt.Fprintf(conn, "1%s\t%s\t%s\t%s\r\n", sections[0], sections[1], opts.hostname, opts.portString)
+				} else if strings.HasSuffix(sections[1], ".gobj") || strings.HasSuffix(sections[1], ".txt") {
+					fmt.Fprintf(conn, "0%s\t%s\t%s\t%s\r\n", sections[0], sections[1], opts.hostname, opts.portString)
+				} else {
+					fmt.Fprintf(conn, "9%s\t%s\t%s\t%s\r\n", sections[0], sections[1], opts.hostname, opts.portString)
+				}
+			}
+		} else if strings.HasPrefix(currentline, "![") {
+			sections := strings.Split(currentline, "]")
+			sections[0] = sections[0][1:]
+			sections[1] = sections[1][1:len(sections[1]) - 1]
+			fmt.Fprintf(conn, "I%s\t%s\t%s\t%s\r\n", sections[0], sections[1], opts.hostname, opts.portString)
+		} else {
+			fmt.Fprintf(conn, "i%s\tfake\t(NULL)\t0\r\n", currentline)
+		}
+    }
+    if scan.Err() != nil {
+        fmt.Fprint(conn, ErrorResponse("Read error"))
+    }
+}
+
 func SendPlainFile(path string, conn net.Conn) {
 	file, err := os.Open(path)
 	if err != nil {
@@ -264,6 +309,7 @@ func SendPlainFile(path string, conn net.Conn) {
         fmt.Fprint(conn, ErrorResponse("Read error"))
     }
 }
+
 
 func RunServer(opts DeppaSettings) {
 	/* init socket */
