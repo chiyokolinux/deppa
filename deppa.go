@@ -35,6 +35,7 @@ type DeppaSettings struct {
 	port int
 	portString string
 	dir string
+	disableGobj bool
 }
 
 func existsAndIsDir(path string) (bool, bool, error) {
@@ -174,14 +175,19 @@ func handleFileDisplayRequest(request string, conn net.Conn, opts DeppaSettings)
 		SendFile(opts.dir + "/" + request, conn)
 		SendFooterIfStandaloneAndExists(request, conn, opts, true)
 	} else if strings.HasSuffix(request, ".gobj") {
-		SendHeaderIfStandaloneAndExists(request, conn, opts, false)
-		out, err := exec.Command(opts.dir + "/" + request).Output()
-		if err != nil {
-			fmt.Fprint(conn, ErrorResponse("error executing script"))
-			return
+		if !opts.disableGobj {
+			SendHeaderIfStandaloneAndExists(request, conn, opts, false)
+			out, err := exec.Command(opts.dir + "/" + request).Output()
+			if err != nil {
+				fmt.Fprint(conn, ErrorResponse("error executing script"))
+				return
+			}
+			conn.Write(out)
+			SendFooterIfStandaloneAndExists(request, conn, opts, false)
+		} else {
+			fmt.Fprint(conn, ErrorResponse("Not found"))
+			fmt.Println("script execution requested, but --disable-gobj flag passed")
 		}
-		conn.Write(out)
-		SendFooterIfStandaloneAndExists(request, conn, opts, false)
 	} else if strings.HasSuffix(request, ".txt") {
 		SendHeaderIfStandaloneAndExists(request, conn, opts, false)
 		SendFile(opts.dir + "/" + request, conn)
@@ -343,9 +349,10 @@ func main() {
 	hostname := flag.String("h", default_hostname, "hostname to listen on")
 	port := flag.Int("p", 70, "port to listen on")
 	dir := flag.String("d", ".", "directory to serve files from")
+	disableGobj := flag.Bool("disable-gobj", false, "disables execution of .gobj files when given")
 	flag.Parse()
 
-	opts := DeppaSettings { *hostname, *port, strconv.Itoa(*port), *dir }
+	opts := DeppaSettings { *hostname, *port, strconv.Itoa(*port), *dir, *disableGobj }
 
 	RunServer(opts)
 }
