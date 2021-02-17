@@ -282,13 +282,10 @@ func SendMarkdownFile(path string, conn net.Conn, opts DeppaSettings, request st
 				}
 
 				if strings.HasSuffix(sections[1], "/") || strings.HasSuffix(sections[1], ".md") || strings.HasSuffix(sections[1], ".gm") {
-					// fmt.Fprintf(conn, "1%s\t%s\t%s\t%s\r\n", sections[0], sections[1], opts.hostname, opts.portString)
 					content += "1" + sections[0] + "\t" + sections[1] + "\t" + opts.hostname + "\t" + opts.portString + "\r\n"
 				} else if strings.HasSuffix(sections[1], ".gobj") || strings.HasSuffix(sections[1], ".txt") {
-					// fmt.Fprintf(conn, "0%s\t%s\t%s\t%s\r\n", sections[0], sections[1], opts.hostname, opts.portString)
 					content += "0" + sections[0] + "\t" + sections[1] + "\t" + opts.hostname + "\t" + opts.portString + "\r\n"
 				} else {
-					// fmt.Fprintf(conn, "9%s\t%s\t%s\t%s\r\n", sections[0], sections[1], opts.hostname, opts.portString)
 					content += "9" + sections[0] + "\t" + sections[1] + "\t" + opts.hostname + "\t" + opts.portString + "\r\n"
 				}
 			}
@@ -296,10 +293,8 @@ func SendMarkdownFile(path string, conn net.Conn, opts DeppaSettings, request st
 			sections := strings.Split(currentline, "]")
 			sections[0] = sections[0][1:]
 			sections[1] = sections[1][1:len(sections[1]) - 1]
-			// fmt.Fprintf(conn, "I%s\t%s\t%s\t%s\r\n", sections[0], sections[1], opts.hostname, opts.portString)
 			content += "I" + sections[0] + "\t" + sections[1] + "\t" + opts.hostname + "\t" + opts.portString + "\r\n"
 		} else {
-			// fmt.Fprintf(conn, "i%s\tfake\t(NULL)\t0\r\n", currentline)
 			content += "i" + currentline + "\tfake\t(NULL)\t0\r\n"
 		}
     }
