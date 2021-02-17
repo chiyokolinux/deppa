@@ -28,6 +28,7 @@ import (
 	"strings"
 	"io/ioutil"
 	"io"
+	"runtime/pprof"
 )
 
 type DeppaSettings struct {
@@ -257,6 +258,8 @@ func SendMarkdownFile(path string, conn net.Conn, opts DeppaSettings, request st
 		return
 	}
 	defer file.Close()
+
+	var content string
 	scan := bufio.NewScanner(file)
     for scan.Scan() {
 		currentline := scan.Text()
@@ -266,7 +269,7 @@ func SendMarkdownFile(path string, conn net.Conn, opts DeppaSettings, request st
 			sections[1] = sections[1][1:len(sections[1]) - 1]
 
 			if strings.HasPrefix(sections[1], "http") || strings.HasSuffix(sections[1], "html") {
-				fmt.Fprintf(conn, "h%s\t/URL:%s\t%s\t%s\r\n", sections[0], sections[1], opts.hostname, opts.portString)
+				content += "h" + sections[0] + "\t/URL:" + sections[1] + "\t" + opts.hostname + "\t" + opts.portString + "\r\n"
 			} else {
 				if sections[1][0] != '/' {
 					pathParts := strings.Split(request, "/")
@@ -279,25 +282,32 @@ func SendMarkdownFile(path string, conn net.Conn, opts DeppaSettings, request st
 				}
 
 				if strings.HasSuffix(sections[1], "/") || strings.HasSuffix(sections[1], ".md") || strings.HasSuffix(sections[1], ".gm") {
-					fmt.Fprintf(conn, "1%s\t%s\t%s\t%s\r\n", sections[0], sections[1], opts.hostname, opts.portString)
+					// fmt.Fprintf(conn, "1%s\t%s\t%s\t%s\r\n", sections[0], sections[1], opts.hostname, opts.portString)
+					content += "1" + sections[0] + "\t" + sections[1] + "\t" + opts.hostname + "\t" + opts.portString + "\r\n"
 				} else if strings.HasSuffix(sections[1], ".gobj") || strings.HasSuffix(sections[1], ".txt") {
-					fmt.Fprintf(conn, "0%s\t%s\t%s\t%s\r\n", sections[0], sections[1], opts.hostname, opts.portString)
+					// fmt.Fprintf(conn, "0%s\t%s\t%s\t%s\r\n", sections[0], sections[1], opts.hostname, opts.portString)
+					content += "0" + sections[0] + "\t" + sections[1] + "\t" + opts.hostname + "\t" + opts.portString + "\r\n"
 				} else {
-					fmt.Fprintf(conn, "9%s\t%s\t%s\t%s\r\n", sections[0], sections[1], opts.hostname, opts.portString)
+					// fmt.Fprintf(conn, "9%s\t%s\t%s\t%s\r\n", sections[0], sections[1], opts.hostname, opts.portString)
+					content += "9" + sections[0] + "\t" + sections[1] + "\t" + opts.hostname + "\t" + opts.portString + "\r\n"
 				}
 			}
 		} else if strings.HasPrefix(currentline, "![") {
 			sections := strings.Split(currentline, "]")
 			sections[0] = sections[0][1:]
 			sections[1] = sections[1][1:len(sections[1]) - 1]
-			fmt.Fprintf(conn, "I%s\t%s\t%s\t%s\r\n", sections[0], sections[1], opts.hostname, opts.portString)
+			// fmt.Fprintf(conn, "I%s\t%s\t%s\t%s\r\n", sections[0], sections[1], opts.hostname, opts.portString)
+			content += "I" + sections[0] + "\t" + sections[1] + "\t" + opts.hostname + "\t" + opts.portString + "\r\n"
 		} else {
-			fmt.Fprintf(conn, "i%s\tfake\t(NULL)\t0\r\n", currentline)
+			// fmt.Fprintf(conn, "i%s\tfake\t(NULL)\t0\r\n", currentline)
+			content += "i" + currentline + "\tfake\t(NULL)\t0\r\n"
 		}
     }
     if scan.Err() != nil {
         fmt.Fprint(conn, ErrorResponse("Read error"))
+		return
     }
+	fmt.Fprint(conn, content)
 }
 
 func SendPlainFile(path string, conn net.Conn) {
@@ -307,13 +317,17 @@ func SendPlainFile(path string, conn net.Conn) {
 		return
 	}
 	defer file.Close()
+
+	var content string
 	scan := bufio.NewScanner(file)
     for scan.Scan() {
-        fmt.Fprintf(conn, "i%s\tfake\t(NULL)\t0\r\n", scan.Text())
+		content += "i" + scan.Text() + "\tfake\t(NULL)\t0\r\n"
     }
     if scan.Err() != nil {
         fmt.Fprint(conn, ErrorResponse("Read error"))
+		return
     }
+	fmt.Fprint(conn, content)
 }
 
 
@@ -326,6 +340,7 @@ func RunServer(opts DeppaSettings) {
 	}
 
 	fmt.Println("listening on " + opts.hostname + ":" + opts.portString)
+	i := 0
 
 	/* listen forever */
 	for {
@@ -334,6 +349,10 @@ func RunServer(opts DeppaSettings) {
 			fmt.Printf("error: could not accept connection (%v)\n", err)
 		}
 		go handleConnection(conn, opts)
+		i += 1
+		if i == 128 {
+			return
+		}
 	}
 }
 
@@ -350,7 +369,18 @@ func main() {
 	port := flag.Int("p", 70, "port to listen on")
 	dir := flag.String("d", ".", "directory to serve files from")
 	disableGobj := flag.Bool("disable-gobj", false, "disables execution of .gobj files when given")
+	cpuprofile := flag.String("cpuprofile", "", "write cpu profile to file")
 	flag.Parse()
+
+	if *cpuprofile != "" {
+        f, err := os.Create(*cpuprofile)
+        if err != nil {
+            fmt.Println(err)
+			return
+        }
+        pprof.StartCPUProfile(f)
+        defer pprof.StopCPUProfile()
+    }
 
 	opts := DeppaSettings { *hostname, *port, strconv.Itoa(*port), *dir, *disableGobj }
 
