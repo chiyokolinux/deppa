@@ -28,7 +28,7 @@ import (
 	"strings"
 	"io/ioutil"
 	"io"
-	"runtime/pprof"
+	"runtime"
 )
 
 type DeppaSettings struct {
@@ -37,6 +37,7 @@ type DeppaSettings struct {
 	portString string
 	dir string
 	disableGobj bool
+	manualGCInterval int
 }
 
 func existsAndIsDir(path string) (bool, bool, error) {
@@ -335,7 +336,7 @@ func RunServer(opts DeppaSettings) {
 	}
 
 	fmt.Println("listening on " + opts.hostname + ":" + opts.portString)
-	i := 0
+	gcCountdown := 0
 
 	/* listen forever */
 	for {
@@ -344,9 +345,12 @@ func RunServer(opts DeppaSettings) {
 			fmt.Printf("error: could not accept connection (%v)\n", err)
 		}
 		go handleConnection(conn, opts)
-		i += 1
-		if i == 128 {
-			return
+
+		gcCountdown++
+		if gcCountdown == opts.manualGCInterval {
+			fmt.Println("\n-= RUNNING GC NOW! =-\n")
+			runtime.GC()
+			gcCountdown = 0
 		}
 	}
 }
@@ -364,20 +368,10 @@ func main() {
 	port := flag.Int("p", 70, "port to listen on")
 	dir := flag.String("d", ".", "directory to serve files from")
 	disableGobj := flag.Bool("disable-gobj", false, "disables execution of .gobj files when given")
-	cpuprofile := flag.String("cpuprofile", "", "write cpu profile to file")
+	gcInterval := flag.Int("gc-interval", 1024, "number of requests after which the garbage collector should trigger")
 	flag.Parse()
 
-	if *cpuprofile != "" {
-        f, err := os.Create(*cpuprofile)
-        if err != nil {
-            fmt.Println(err)
-			return
-        }
-        pprof.StartCPUProfile(f)
-        defer pprof.StopCPUProfile()
-    }
-
-	opts := DeppaSettings { *hostname, *port, strconv.Itoa(*port), *dir, *disableGobj }
+	opts := DeppaSettings { *hostname, *port, strconv.Itoa(*port), *dir, *disableGobj, *gcInterval }
 
 	RunServer(opts)
 }

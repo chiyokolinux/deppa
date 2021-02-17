@@ -1,9 +1,11 @@
 deppa
 -----
 
-deppa (出っ歯), jap. "bucktooth"#
+deppa (出っ歯), jap. "bucktooth"
 is a server implementation of the gopher protocol.
 it is very lightweight and can handle a lot of traffic on low-end hardware (1-4MiB RAM Usage, almost no CPU time!).
+
+you can even run it on a Raspberry Pi Zero and it can handle a TON of traffic, although you should consider more powerful hardware when serving more than ~12k concurrent active users.
 
 it converts markdown files in a directory to gopher responses on-the-fly.
 
