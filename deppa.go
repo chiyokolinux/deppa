@@ -1,5 +1,6 @@
 /**
  * This file is part of Deppa.
+ * Copyright (C) 2021 Emily <elishikawa@jagudev.net>
  *
  * Deppa is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
