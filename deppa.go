@@ -139,7 +139,7 @@ func handleDirectoryListingRequest(request string, conn net.Conn, opts DeppaSett
 		resplines = append(resplines, respline)
 	}
 
-	
+
 	if use_index {
 		handleFileDisplayRequest(request + "/" + index_fname, conn, opts)
 	} else {
