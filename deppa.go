@@ -270,7 +270,7 @@ func SendMarkdownFile(path string, conn net.Conn, opts DeppaSettings, request st
 			sections[0] = sections[0][1:]
 			sections[1] = sections[1][1:len(sections[1]) - 1]
 
-			if strings.HasPrefix(sections[1], "http") || strings.HasSuffix(sections[1], "html") {
+			if strings.HasPrefix(sections[1], "http") || strings.HasSuffix(sections[1], ".html") {
 				content += "h" + sections[0] + "\t/URL:" + sections[1] + "\t" + opts.hostname + "\t" + opts.portString + "\r\n"
 			} else {
 				if sections[1][0] != '/' {
