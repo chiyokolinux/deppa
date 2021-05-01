@@ -133,6 +133,8 @@ func handleDirectoryListingRequest(request string, conn net.Conn, opts DeppaSett
 			respline = "1" + file.Name() + "\t" + request + file.Name() + "\t" + opts.hostname + "\t" + opts.portString + "\r\n"
 		} else if strings.HasSuffix(file.Name(), ".gobj") || strings.HasSuffix(file.Name(), ".txt") {
 			respline = "0" + file.Name() + "\t" + request + file.Name() + "\t" + opts.hostname + "\t" + opts.portString + "\r\n"
+		} else if strings.HasSuffix(file.Name(), ".ogg") || strings.HasSuffix(file.Name(), ".opus") || strings.HasSuffix(file.Name(), ".flac") || strings.HasSuffix(file.Name(), ".mp3") || strings.HasSuffix(file.Name(), ".wav") {
+			respline = "s" + file.Name() + "\t" + request + file.Name() + "\t" + opts.hostname + "\t" + opts.portString + "\r\n"
 		} else {
 			respline = "9" + file.Name() + "\t" + request + file.Name() + "\t" + opts.hostname + "\t" + opts.portString + "\r\n"
 		}
