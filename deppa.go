@@ -367,12 +367,18 @@ func main() {
 	}
 
 	/* parse flags */
+	version := flag.Bool("v", false, "print program version and exit")
 	hostname := flag.String("h", default_hostname, "hostname to listen on")
 	port := flag.Int("p", 70, "port to listen on")
 	dir := flag.String("d", ".", "directory to serve files from")
 	disableGobj := flag.Bool("disable-gobj", false, "disables execution of .gobj files when given")
 	gcInterval := flag.Int("gc-interval", 1024, "number of requests after which the garbage collector should trigger")
 	flag.Parse()
+
+	if *version {
+		fmt.Println("deppa 1.0")
+		os.Exit(0)
+    }
 
 	opts := DeppaSettings { *hostname, *port, strconv.Itoa(*port), *dir, *disableGobj, *gcInterval }
 
