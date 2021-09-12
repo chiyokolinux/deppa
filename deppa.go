@@ -386,7 +386,7 @@ func main() {
 	flag.Parse()
 
 	if *version {
-		fmt.Println("deppa 1.0")
+		fmt.Println("deppa 1.1")
 		os.Exit(0)
     }
 
