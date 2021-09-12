@@ -27,9 +27,11 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"os/user"
 	"runtime"
 	"strconv"
 	"strings"
+	"syscall"
 )
 
 type DeppaSettings struct {
@@ -39,6 +41,8 @@ type DeppaSettings struct {
 	dir              string
 	disableGobj      bool
 	manualGCInterval int
+	userId           uint32
+	groupId          uint32
 }
 
 func existsAndIsDir(path string) (bool, bool, error) {
@@ -183,7 +187,11 @@ func handleFileDisplayRequest(request string, conn net.Conn, opts DeppaSettings)
 	} else if strings.HasSuffix(request, ".gobj") {
 		if !opts.disableGobj {
 			SendHeaderIfStandaloneAndExists(request, conn, opts, false)
-			out, err := exec.Command(opts.dir + "/" + request).Output()
+			// out, err := exec.Command(opts.dir + "/" + request).Output()
+			cmd := exec.Command(opts.dir + "/" + request)
+			cmd.SysProcAttr = &syscall.SysProcAttr{}
+			cmd.SysProcAttr.Credential = &syscall.Credential{Uid: opts.userId, Gid: opts.groupId}
+			out, err := cmd.Output()
 			if err != nil {
 				fmt.Fprint(conn, ErrorResponse("error executing script"))
 				return
@@ -373,6 +381,8 @@ func main() {
 	dir := flag.String("d", ".", "directory to serve files from")
 	disableGobj := flag.Bool("disable-gobj", false, "disables execution of .gobj files when given")
 	gcInterval := flag.Int("gc-interval", 1024, "number of requests after which the garbage collector should trigger")
+	dropUid := flag.String("gobj-user", "nobody", "user to run gobjs as")
+	dropGid := flag.String("gobj-group", "nogroup", "group to run gobjs as")
 	flag.Parse()
 
 	if *version {
@@ -380,7 +390,35 @@ func main() {
 		os.Exit(0)
     }
 
-	opts := DeppaSettings { *hostname, *port, strconv.Itoa(*port), *dir, *disableGobj, *gcInterval }
+	var userId uint32 = 0
+	var groupId uint32 = 0
+	if !(*disableGobj) {
+		usr, err := user.Lookup(*dropUid)
+		if err != nil {
+			fmt.Printf("user.Lookup: %v", err)
+			os.Exit(1)
+		}
+		uid, err := strconv.Atoi(usr.Uid)
+		if err != nil {
+			fmt.Printf("user.Lookup.Uid.Atoi: %v", err)
+			os.Exit(1)
+		}
+		userId = uint32(uid)
+
+		group, err := user.LookupGroup(*dropGid)
+		if err != nil {
+			fmt.Printf("user.LookupGroup: %v", err)
+			os.Exit(1)
+		}
+		gid, err := strconv.Atoi(group.Gid)
+		if err != nil {
+			fmt.Printf("user.LookupGroup.Gid.Atoi: %v", err)
+			os.Exit(1)
+		}
+		groupId = uint32(gid)
+	}
+
+	opts := DeppaSettings { *hostname, *port, strconv.Itoa(*port), *dir, *disableGobj, *gcInterval, userId, groupId }
 
 	RunServer(opts)
 }
