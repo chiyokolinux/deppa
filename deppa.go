@@ -395,24 +395,24 @@ func main() {
 	if !(*disableGobj) {
 		usr, err := user.Lookup(*dropUid)
 		if err != nil {
-			fmt.Printf("user.Lookup: %v", err)
+			fmt.Printf("user.Lookup: %v\n", err)
 			os.Exit(1)
 		}
 		uid, err := strconv.Atoi(usr.Uid)
 		if err != nil {
-			fmt.Printf("user.Lookup.Uid.Atoi: %v", err)
+			fmt.Printf("user.Lookup.Uid.Atoi: %v\n", err)
 			os.Exit(1)
 		}
 		userId = uint32(uid)
 
 		group, err := user.LookupGroup(*dropGid)
 		if err != nil {
-			fmt.Printf("user.LookupGroup: %v", err)
+			fmt.Printf("user.LookupGroup: %v\n", err)
 			os.Exit(1)
 		}
 		gid, err := strconv.Atoi(group.Gid)
 		if err != nil {
-			fmt.Printf("user.LookupGroup.Gid.Atoi: %v", err)
+			fmt.Printf("user.LookupGroup.Gid.Atoi: %v\n", err)
 			os.Exit(1)
 		}
 		groupId = uint32(gid)
